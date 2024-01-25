@@ -1,0 +1,221 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+(define (char-newline? ch)
+  (char=? #\newline ch))
+(define (char-return? ch)
+  (char=? #\return ch))
+
+; функция, която разделя стринг на лист от стрингове според подаден delimiter
+;https://cookbook.scheme.org/split-string/
+(define (string-split char-delimiter? string)
+  (define (maybe-add a b parts)
+    (if (= a b) parts (cons (substring string a b) parts)))
+  (let ((n (string-length string)))
+    (let loop ((a 0) (b 0) (parts '()))
+      (if (< b n)
+          (if (not (char-delimiter? (string-ref string b)))
+              (loop a (+ b 1) parts)
+              (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+          (reverse (maybe-add a b parts))))))
+
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+
+
+;връща подсписък от индекс s до индекс e ключително
+(define (sublist l s e)
+  (define (helper ls curr res)
+    (if (null? ls)
+        res
+        (helper (cdr ls) (+ curr 1) (if (and (>= curr s) (<= curr e))
+                                        (append res (list (car ls)))
+                                        res
+                ))))
+  (if (or ( < s 0) (< e s) (> s (length l)))
+      '()
+  (helper l 0 '())))
+;функция, която разделя лист на подлистове според подаден delimiter
+;https://codereview.stackexchange.com/questions/87058/splitting-a-list-in-racket
+(define (split-by lst x)
+  (foldr (lambda (element next)
+           (if (eq? element x)
+               (cons '() next)
+               (cons (cons element (car next)) (cdr next))))
+         (list '()) lst))
+
+
+(define (char-dots? ch) (char=? #\: ch))
+(define (char-space? ch) (char=? #\space ch))
+(define (char-comma? ch) (char=? #\, ch))
+(define (char-eq? ch) (char=? #\= ch))
+
+; форматира всеки списък с маймуна по следния начин:
+(define (format l)
+   (list ;за (" 76, 88, 96, 97, 58, 61, 67") -> (76 88 96 97 58 61 67)
+         (map string->number (apply append (map (lambda(y)(string-split char-space? y)) (string-split char-comma? (car (car l))))))
+         ;за (" new = old * 19") -> ("old" "*" "19")
+         (string-split char-space? (car (cdr (string-split char-eq? (car (car (cdr l)))))))
+         ; за (" divisible by 3") -> (3)
+         (map string->number (cdr (cdr (string-split char-space? (car (car (cdr (cdr l))))))))
+         ; за (" throw to monkey 2") -> (2)
+         (map string->number (cdr(cdr (cdr (string-split char-space? (car (car(cdr (cdr (cdr l))))))))))
+         ;за (" throw to monkey 3") -> (3)
+         (map string->number (cdr(cdr (cdr (string-split char-space? (car (car (cdr (cdr (cdr (cdr l)))))))))))))
+;за даден списък замества всяко срещане на "old" с el
+(define (subs el l)
+  (if (null? l)
+      '()
+       (if (string=? "old" (car l))
+           (cons el (subs el (cdr l)))
+           (if (string->number (car l))
+               (cons (string->number (car l)) (subs el (cdr l)))
+            (cons (car l) (subs el (cdr l)))))))
+
+;извършва операцията за вски елемент, който маймуната държи според дадената операция, където old е заместен с елемента
+;работи само с бинарни операции, въпреки че не е изрично упоменат формата в условието
+(define (do-operation l)
+  (cond ((string=? "+" (car (cdr l))) (+ (car l) (car (cdr (cdr l)))))
+        ((string=? "*" (car (cdr l))) (* (car l) (car (cdr (cdr l)))))
+        ((string=? "/" (car (cdr l))) (/ (car l) (car (cdr (cdr l)))))
+        ((string=? "-" (car (cdr l))) (- (car l) (car (cdr (cdr l)))))
+        ))
+
+;връща списък за m като първият елемент на m - списъкът с всики елементи е заместен от всички елементи,но с вече приложена операция
+(define (handle-monkey  m)
+  (append (list (map (lambda(x) (do-operation (subs x (car (cdr m))))) (car m))) (cdr m))
+  )
+
+; за да се избегнат прекалено големите числа вместо деление 3 се прилага модулно деление на стойността от умножението на всикчки модули по условие за всяка маймуна
+; идеята за това е взаимствана от reddit темата за ден 11
+; за елемент,към който вече е приложена операция, се проверява дали изпълнва условието за divisible by num
+; според отговора се създава двойка от вида (елемента % modTot , #t/#f позиция)
+(define (item el m modTot)
+  (if (= 0 (remainder (remainder el modTot) (car (car (cdr (cdr m))))))
+      (cons (remainder el modTot) (car (cdr (cdr (cdr m)))))
+      (cons (remainder el modTot) (car (cdr (cdr (cdr (cdr m))))))))
+
+; всеки елемент,който m държи се заменя от двойка от вида (item el l)
+(define (mapIt m modTot)
+(append (list (map (lambda(x) (item x m modTot)) (car (handle-monkey m)))) (cdr m) ))
+
+;добавя дадения елемент към списъка с елементи на маймуна номер i от l
+(define (addit l ind el)
+  (list (append (list (append (car (list-ref l ind)) (list el))) (cdr (list-ref l ind)))))
+
+;след всяка маймуна се изчиства списъка и с елементи, които вече са обходени и хвърлени
+;тук също така се добавя и броя елементи които маймуната е трябвало да хвърли към края на списъка й
+(define (empty-item-list i l)
+  (append (sublist l 0 (- i 1)) (list (append (list '()) (append (cdr(list-ref l i))(list (length (car (list-ref l i))))))) (sublist l (+ 1 i) (- (length l) 1)) ))
+
+; за дадена маймуна и списък от маймуни се извършва преразпределенеито на вски един нейн елемент според зададените условия
+(define (handle  monkey l)
+  (define (helper m res)
+    (if (null? m)
+        res
+        (helper (cdr m) (append (sublist res 0 (- (car (cdr (car m))) 1)) (addit res (car (cdr (car m))) (car (car m))) (sublist res (+ 1 (car (cdr (car m)))) (- (length res) 1))))
+        ))(helper (car monkey) l))
+
+
+; извършва един рунд като минава през всяка маймуна и и прилага loopIt
+(define (loopIt l modTot)
+  (define (helper  i res)
+    (if ( = i (length l))
+        res
+        (helper (+ i 1) (empty-item-list i (handle (mapIt (list-ref res i) modTot) res)) )
+        )
+    )
+  (helper 0 l)
+  )
+
+; имплементирано на упражнения
+(define (insertion-sort l)
+  (define (insert x l)
+    (cond ((null? l) (list x))
+          ((>= x (car l))
+           (cons x l))
+          (else
+            (cons (car l) (insert x (cdr l))))))
+  (foldr insert '() l))
+
+;намира общия модул
+(define (modulTotal l)
+  (foldr * 1(map (lambda(x) (car (car (cdr (cdr x))))) l)))
+
+;извършва 10000 рунда
+(define (10000-rounds l modTot)
+  (define (helper cnt res)
+    (if (= cnt 10001)
+       res
+        (helper (+ 1 cnt) (loopIt res modTot))))
+  (helper 1 l))
+
+;за вски елемент на l след изминати 20 рунда се взимат само елементите, които не са списъци - всички елементи оказващи броя предмети които маймината е държала всеки рунд
+;тези елементи се събират и дават общия брой предмети, които са били хвърлени
+;сортират се в нарастващ ред
+;взимат се първите 2 елемента и с foldr се умножават, което дава искания резултат
+(define (calc l)
+  (foldr * 1 (sublist (insertion-sort (map (lambda(z)(foldr + 0 z))  (map (lambda(x) (filter (lambda(y) (eq? #f (list? y))) x)) l))) 0 1)))
+
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define input (port->string in))
+;(define splitInp (string-split char-whitespace? input))
+(define inp (string-split char-newline? input))
+;-> ("Monkey 0:\r"
+; "  Starting items: 79, 98\r"
+; "  Operation: new = old * 19\r"
+; "  Test: divisible by 23\r"
+; "    If true: throw to monkey 2\r"
+; "    If false: throw to monkey 3\r"
+; "\r"
+; "Monkey 1:\r" ... ) 
+(define inp2 (map (lambda(x) (string-split char-return? x)) inp))
+;-> (("Monkey 0:")
+; ("  Starting items: 79, 98")
+; ("  Operation: new = old * 19")
+; ("  Test: divisible by 23")
+; ("    If true: throw to monkey 2")
+; ("    If false: throw to monkey 3")
+; ()
+; ("Monkey 1:")...)
+
+(define inp3 (split-by inp2 '()))
+;-> ((("Monkey 0:")
+;  ("  Starting items: 79, 98")
+;  ("  Operation: new = old * 19")
+;  ("  Test: divisible by 23")
+;  ("    If true: throw to monkey 2")
+;  ("    If false: throw to monkey 3"))
+; (("Monkey 1:")...)..)
+
+;разделя елементите по :
+(define inp4 (map  (lambda(x) (map  (lambda(y) (string-split char-dots? (car y)))  x))  inp3))
+;-> ((("Monkey 0")
+;  ("  Starting items" " 79, 98")
+;  ("  Operation" " new = old * 19")
+;  ("  Test" " divisible by 23")
+;  ("    If true" " throw to monkey 2")
+;  ("    If false" " throw to monkey 3"))
+; (("Monkey 1")
+
+;връща втората част от списъците след разделянето по :
+(define inp5 (map (lambda(x) (map cdr (cdr x))) inp4))
+;-> (((" 79, 98") (" new = old * 19") (" divisible by 23") (" throw to monkey 2") (" throw to monkey 3"))
+;   ((" 54, 65, 75, 74") (" new = old + 6") (" divisible by 19") (" throw to monkey 2") (" throw to monkey 0"))
+
+;форматира списъците според описанието към функцията format
+(define inp6 (map format inp5))
+;-> (((79 98) ("old" "*" "19") (23) (2) (3))
+;   ((54 65 75 74) ("old" "+" "6") (19) (2) (0))
+
+(calc (10000-rounds inp6 (modulTotal inp6)))

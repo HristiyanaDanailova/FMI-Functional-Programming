@@ -1,0 +1,98 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input2.txt"))
+
+; функция, която разделя стринг на лист от стрингове според подаден delimiter
+;https://cookbook.scheme.org/split-string/
+(define (string-split char-delimiter? string)
+  (define (maybe-add a b parts)
+    (if (= a b) parts (cons (substring string a b) parts)))
+  (let ((n (string-length string)))
+    (let loop ((a 0) (b 0) (parts '()))
+      (if (< b n)
+          (if (not (char-delimiter? (string-ref string b)))
+              (loop a (+ b 1) parts)
+              (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+          (reverse (maybe-add a b parts))))))
+
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+;връща подсписък от индекс s до индекс e ключително
+(define (sublist l s e)
+  (define (helper ls curr res)
+    (if (null? ls)
+        res
+        (helper (cdr ls) (+ curr 1) (if (and (>= curr s) (<= curr e))
+                                        (append res (list (car ls)))
+                                        res
+                ))))
+  (if (or ( < s 0) (< e s) (> s (length l)))
+      '()
+  (helper l 0 '())))
+
+; функции връщащи даден ред,колона или определен елемент
+(define (get-row i m) (list-ref m i))
+(define (get-col i m) (map (lambda(x)(list-ref x i)) m))
+(define (get-el i j m) (get-row i (get-col j m)))
+
+;връща елементите на списъка, които биха скрили дадения el
+(define (taller-than el l)
+  (filter (lambda(x) (char>=? x el)) l))
+;съставя лист от 4 листа с елементите на същия ред преди и след елемента и елементите в същата колона, преди и след елемента
+(define (make-lsts i j m)
+ (list (sublist (get-row i m) 0 (- j 1))
+       (sublist (get-row i m) (+ j 1) (length (car m)))
+       (sublist (get-col j m) 0 (- i 1))
+       (sublist (get-col j m) (+ i 1) (length (get-col j m)))
+       ) )
+;функцията филтитра елементите, който могат да скрият дадения за всеки списък на "съседство" и ако всеки е непразен, то дървото е скрито, в противен случай е видимо
+(define (visible? i j m)
+ (if (null? (filter null? (map (lambda(y)(taller-than (get-el i j m) y)) (make-lsts i j m))))
+     #f
+     #t))
+
+; генерира списък с елементите 1 до length 
+(define (gen-it length)
+  (define (helper a b res)
+    (if (> a b)
+        res
+        (helper (+ a 1) b (append res (list a)))))
+  (helper 1 length '()))
+
+;взима списък и map-ва стоиност #t/#f за вски елемент според неговата видимост
+(define (walk i m)
+  (map (lambda(x)(visible? i x m)) (gen-it (- (length (car m)) 2))))
+
+;за всеки ред на матрицата, освен външните, се изпълнява walk као резултата е списък от #t и #f стойности
+(define (match m)
+  (define (helper curr res)
+    (if ( = curr ( - (length m) 1))
+        res
+        (helper (+ curr 1) (append res (walk curr m)))))
+  (helper 1 '()))
+;връща броя на външните елементи на матрицата
+(define (outter m)
+  (+ (* 2 (length (car m)))
+     (* 2 (- (length m) 2))))
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define input (port->string in))
+;-> "30373\r\n25512\r\n65332\r\n33549\r\n35390"
+(define splitInp (string-split char-whitespace? input))
+;-> ("30373" "25512" "65332" "33549" "35390")
+(define mat (map string->list splitInp))
+;-> ((#\3 #\0 #\3 #\7 #\3)
+;   (#\2 #\5 #\5 #\1 #\2)
+;   (#\6 #\5 #\3 #\3 #\2)
+;   (#\3 #\3 #\5 #\4 #\9)
+;   (#\3 #\5 #\3 #\9 #\0))
+(+ (outter mat)(length (filter (lambda(x)(eq? x #t)) (match mat))))
+;-> резултата от общия брой видими дървета 

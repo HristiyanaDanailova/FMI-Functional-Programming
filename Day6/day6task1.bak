@@ -1,0 +1,73 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+
+;връща подсписък от индекс s до индекс e ключително
+(define (sublist l s e)
+  (define (helper ls curr res)
+    (if (null? ls)
+        res
+        (helper (cdr ls) (+ curr 1) (if (and (>= curr s) (<= curr e))
+                                        (append res (list (car ls)))
+                                        res
+                ))))
+  (if (or ( < s 0) (< e s) (> s (length l)))
+      '()
+  (helper l 0 '())))
+
+
+;проверява дали х се среща в l
+(define (memberR x l)
+  (if (null? l)
+      #f
+      (if (eq? x (car l))
+          #t
+          (memberR x (cdr l)))))
+
+;проверява дали елемента х е уникален за l
+(define (unique? x l)
+  (if (null? l)
+      #t
+      (if (eq? x (car l))
+          (if (memberR (car l) (cdr l))
+              #f
+               #t)
+          (unique? x (cdr l)))))
+
+; проверява дали всеки елемент в списъка е уникален и няма повторения
+(define (marker? l)
+ (if (null? (filter (lambda(y) (eq? y #f))(map (lambda(x) (unique? x l)) l )))
+     #t
+     #f))
+
+; за вски елемент от l създава 4-елементен подсписък, за който проверява дали е маркер и ако да, то връща индекса като резултат
+(define (marker l)
+  (define (helper ls ind res)
+    (if (or (= ind (- (length l) 3))
+            (not (= res -1)))
+        res
+        (helper (cdr ls) (+ ind 1)
+                (if (marker? (sublist l ind (+ 3 ind)))
+                    (+ 4 ind)
+                    res)
+                )))
+  (helper l 0 -1))
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define input (port->string in))
+;-> "mjqjpqmgbljsphdztnvjfqwrcgsmlb"
+(define inputToLst (string->list input))
+;-> (#\m #\j #\q #\j #\p #\q #\m #\g #\b #\l #\j #\s #\p #\h #\d #\z #\t #\n #\v #\j #\f #\q #\w #\r #\c #\g #\s #\m #\l #\b)
+(marker inputToLst)
+
+(close-input-port in)

@@ -1,0 +1,134 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+;функция, която разделя лист на подлистове според подаден delimiter
+;https://codereview.stackexchange.com/questions/87058/splitting-a-list-in-racket
+(define (split-by lst x)
+  (foldr (lambda (element next)
+           (if (eq? element x)
+               (cons '() next)
+               (cons (cons element (car next)) (cdr next))))
+         (list '()) lst))
+
+;помощни функции при работата с дърво
+;работи с два наследника - ляв и десен
+(define the-empty-tree '())
+(define (make-tree root left right)
+(list root left right))
+(define root-t car)
+(define left-t cadr)
+(define right-t caddr)
+
+;трие item от list
+(define (delete item list) (filter (lambda (x) (not (equal? x item))) list))
+
+;търси елемент от ляво поддърво
+(define (findLeft l r)
+  (if (string->number (car (cdr r))) ;ако стойността е число връща числото
+      (list (car (cdr r)))
+  (car (filter (lambda(x) (string=? (car x) (car (cdr r)))) l))));ако не е число връща съответната маймуна от спиъска l
+
+;търси елемент от дясно поддърво
+(define (findRight l r)
+  (if (string->number (car (cdr (cdr r)))) ;ако стойността е число връща числото
+      (list (car (cdr (cdr r))))
+  (car (filter (lambda(x) (string=? (car x) (car (cdr (cdr (cdr r)))))) l)))) ;ако не е число връща съответната маймуна от спиъска l
+
+;списък и кроен и създава дърво с корен r от елементите в списък l
+(define (make-tree-list l r)
+  (if (null? l)
+      '()
+      (if (= 2 (length r)) ; ако дължината е 2, то имаме маймунка със стойност
+          (make-tree (car (cdr r)) the-empty-tree the-empty-tree)
+      (if (= 1 (length r)) ; ако дължината е 1 значи имаме стойност
+          (make-tree (car r) the-empty-tree the-empty-tree)
+          (make-tree (car (cdr (cdr r))) ; в противен случай имаме маймунка с някаква операция и рекурсивно създаваме ляво и дясно дърво с корен операцията 
+                     (make-tree-list (delete (findLeft l r) l) (findLeft l r))
+                     (make-tree-list (delete (findRight l r) l) (findRight l r)))
+
+                  ))))
+; извършва операцията op над двата дадени елемента
+(define (do-oper op l r)
+  (cond ((string=? "+" op) (+ l r))
+        ((string=? "*" op) (* l r))
+        ((string=? "/" op) (quotient l r))
+        ((string=? "-" op) (- l r))
+    ))
+
+;оценява дървото
+(define (evalTree t)
+  (if (null? t)
+      '()
+      (if (string->number (root-t t)) ;ако имаме число го връщаме
+           (string->number (root-t t))
+              (do-oper   (root-t t) ;ако не извъшрва операцията над левия е десен наследник
+                         (evalTree (left-t t))
+                         (evalTree (right-t t)))))
+
+  )
+ 
+(define inp (port->string in))
+;-> "root: pppw + sjmn\r\ndbpl: 5\r\ncczh: sllz + lgvd\r\nzczc: 2\r\nptdq: humn - dvpt\r\ndvpt: 3\r\nlfqf: 4\r\nhumn: 5\r\nljgn: 2\r\nsjmn: drzm * dbpl\r\nsllz: 4\r\npppw: cczh / lfqf\r\nlgvd: ljgn * ptdq\r\ndrzm: hmdt - zczc\r\nhmdt: 32"
+(define inp2 (map (lambda(t) (split-by t #\space))(map car (map (lambda(y) (filter (lambda(z) (not (null? z))) y))(map (lambda(x) (split-by x #\newline))(split-by (string->list inp) #\return))
+))))
+;-> (((#\r #\o #\o #\t #\:) (#\p #\p #\p #\w) (#\+) (#\s #\j #\m #\n))
+;   ((#\d #\b #\p #\l #\:) (#\5))
+;   ((#\c #\c #\z #\h #\:) (#\s #\l #\l #\z) (#\+) (#\l #\g #\v #\d))
+;   ((#\z #\c #\z #\c #\:) (#\2))
+;   ((#\p #\t #\d #\q #\:) (#\h #\u #\m #\n) (#\-) (#\d #\v #\p #\t))
+;   ((#\d #\v #\p #\t #\:) (#\3))
+;   ((#\l #\f #\q #\f #\:) (#\4))
+;   ((#\h #\u #\m #\n #\:) (#\5))
+;   ((#\l #\j #\g #\n #\:) (#\2))
+;   ((#\s #\j #\m #\n #\:) (#\d #\r #\z #\m) (#\*) (#\d #\b #\p #\l))
+;   ((#\s #\l #\l #\z #\:) (#\4))
+;   ((#\p #\p #\p #\w #\:) (#\c #\c #\z #\h) (#\/) (#\l #\f #\q #\f))
+;   ((#\l #\g #\v #\d #\:) (#\l #\j #\g #\n) (#\*) (#\p #\t #\d #\q))
+;   ((#\d #\r #\z #\m #\:) (#\h #\m #\d #\t) (#\-) (#\z #\c #\z #\c))
+;   ((#\h #\m #\d #\t #\:) (#\3 #\2)))
+
+(define no-dots (map (lambda(x) (map (lambda(y) (filter (lambda(z) (not (char=? #\: z))) y)) x))inp2))
+;-> (((#\r #\o #\o #\t) (#\p #\p #\p #\w) (#\+) (#\s #\j #\m #\n))
+;   ((#\d #\b #\p #\l) (#\5))
+;   ((#\c #\c #\z #\h) (#\s #\l #\l #\z) (#\+) (#\l #\g #\v #\d))
+;   ((#\z #\c #\z #\c) (#\2))
+;   ((#\p #\t #\d #\q) (#\h #\u #\m #\n) (#\-) (#\d #\v #\p #\t))
+;   ((#\d #\v #\p #\t) (#\3))
+;   ((#\l #\f #\q #\f) (#\4))
+;   ((#\h #\u #\m #\n) (#\5))
+;   ((#\l #\j #\g #\n) (#\2))
+;   ((#\s #\j #\m #\n) (#\d #\r #\z #\m) (#\*) (#\d #\b #\p #\l))
+;   ((#\s #\l #\l #\z) (#\4))
+;   ((#\p #\p #\p #\w) (#\c #\c #\z #\h) (#\/) (#\l #\f #\q #\f))
+;   ((#\l #\g #\v #\d) (#\l #\j #\g #\n) (#\*) (#\p #\t #\d #\q))
+;   ((#\d #\r #\z #\m) (#\h #\m #\d #\t) (#\-) (#\z #\c #\z #\c))
+;   ((#\h #\m #\d #\t) (#\3 #\2)))
+(define inp3 (map (lambda(x) (map list->string x)) no-dots))
+;-> (("root" "pppw" "+" "sjmn")
+;   ("dbpl" "5")
+;   ("cczh" "sllz" "+" "lgvd")
+;   ("zczc" "2")
+;   ("ptdq" "humn" "-" "dvpt")
+;   ("dvpt" "3")
+;   ("lfqf" "4")
+;   ("humn" "5")
+;   ("ljgn" "2")
+;   ("sjmn" "drzm" "*" "dbpl")
+;   ("sllz" "4")
+;   ("pppw" "cczh" "/" "lfqf")
+;   ("lgvd" "ljgn" "*" "ptdq")
+;   ("drzm" "hmdt" "-" "zczc")
+;   ("hmdt" "32"))
+
+(evalTree (make-tree-list (delete (car (filter (lambda(x) (string=? "root" (car x))) inp3)) inp3) (car (filter (lambda(x) (string=? "root" (car x))) inp3))))
+(close-input-port in)

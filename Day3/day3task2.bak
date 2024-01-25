@@ -1,0 +1,89 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+; функция, която разделя стринг на лист от стрингове според подаден delimiter
+;https://cookbook.scheme.org/split-string/
+(define (string-split char-delimiter? string)
+  (define (maybe-add a b parts)
+    (if (= a b) parts (cons (substring string a b) parts)))
+  (let ((n (string-length string)))
+    (let loop ((a 0) (b 0) (parts '()))
+      (if (< b n)
+          (if (not (char-delimiter? (string-ref string b)))
+              (loop a (+ b 1) parts)
+              (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+          (reverse (maybe-add a b parts))))))
+
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+
+;проверява дали ch е елемент от str
+(define (charInStr? ch str)
+  (if (null? str)
+       #f
+       (if (char=? ch (car str))
+            #t
+            (charInStr? ch (cdr str)))))
+
+;асоциира char със съответната му стойност според ascii стойността му
+(define (decode ch)
+  (if (char-lower-case? ch)
+      (- (char->integer ch) 96)
+      (- (char->integer ch) 38)))
+
+;функции достъпващи първи, втори и трети елемент от списък за удобство
+(define (fst l) (car l))
+(define (scd l) (car (cdr l)))
+(define (trd l) (car (cdr (cdr l))))
+
+;групира подадения вход на списък от списъци, всеки съдържащ 3 елемента
+(define (group l)
+  (define (helper curr res ls)
+    (if (= curr (length l))
+        res
+        (helper (+ curr 3) (append res (list (list (fst ls) (scd ls) (trd ls)))) (cdr (cdr (cdr ls)))
+        )))
+  (helper 0 '() l))
+
+;намира символът, който се среща във всеки един от 3те списъка
+(define (match l)
+  (filter (lambda(x) (and (charInStr? x (scd l)) (charInStr? x (trd l)))) (fst l)))
+
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define input (port->string in))
+;-> "vJrwpWtwJgWrhcsFMMfFFhFp\r\njqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL\r\nPmmdzqPrVvPwwTWBwg\r\nwMqvLMZHhHMvwLHjbvcjnnSBnvTQFn\r\nttgJtRGJQctTZtZT\r\nCrZsJsPPZsGzwwsLwLmpwMDw"
+(define inputToStrs (string-split char-whitespace? input))
+;-> ("vJrwpWtwJgWrhcsFMMfFFhFp" "jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL" "PmmdzqPrVvPwwTWBwg" "wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn" "ttgJtRGJQctTZtZT" "CrZsJsPPZsGzwwsLwLmpwMDw")
+(define inputToLsts (map string->list inputToStrs))
+;-> ((#\v #\J #\r #\w #\p #\W #\t #\w #\J #\g #\W #\r #\h #\c #\s #\F #\M #\M #\f #\F #\F #\h #\F #\p)
+;   (#\j #\q #\H #\R #\N #\q #\R #\j #\q #\z #\j #\G #\D #\L #\G #\L #\r #\s #\F #\M #\f #\F #\Z #\S #\r #\L #\r #\F #\Z #\s #\S #\L)
+;   (#\P #\m #\m #\d #\z #\q #\P #\r #\V #\v #\P #\w #\w #\T #\W #\B #\w #\g)
+;   (#\w #\M #\q #\v #\L #\M #\Z #\H #\h #\H #\M #\v #\w #\L #\H #\j #\b #\v #\c #\j #\n #\n #\S #\B #\n #\v #\T #\Q #\F #\n)
+;   (#\t #\t #\g #\J #\t #\R #\G #\J #\Q #\c #\t #\T #\Z #\t #\Z #\T)
+;   (#\C #\r #\Z #\s #\J #\s #\P #\P #\Z #\s #\G #\z #\w #\w #\s #\L #\w #\L #\m #\p #\w #\M #\D #\w))
+
+(define groups (group inputToLsts))
+;-> (((#\v #\J #\r #\w #\p #\W #\t #\w #\J #\g #\W #\r #\h #\c #\s #\F #\M #\M #\f #\F #\F #\h #\F #\p)
+;   (#\j #\q #\H #\R #\N #\q #\R #\j #\q #\z #\j #\G #\D #\L #\G #\L #\r #\s #\F #\M #\f #\F #\Z #\S #\r #\L #\r #\F #\Z #\s #\S #\L)
+;   (#\P #\m #\m #\d #\z #\q #\P #\r #\V #\v #\P #\w #\w #\T #\W #\B #\w #\g))
+;   ((#\w #\M #\q #\v #\L #\M #\Z #\H #\h #\H #\M #\v #\w #\L #\H #\j #\b #\v #\c #\j #\n #\n #\S #\B #\n #\v #\T #\Q #\F #\n)
+;   (#\t #\t #\g #\J #\t #\R #\G #\J #\Q #\c #\t #\T #\Z #\t #\Z #\T)
+;   (#\C #\r #\Z #\s #\J #\s #\P #\P #\Z #\s #\G #\z #\w #\w #\s #\L #\w #\L #\m #\p #\w #\M #\D #\w)))
+(define resList (map car (map match groups)))
+;-> (#\r #\Z)
+(define resDecode (map decode resList))
+;-> (18 52)
+(foldr + 0 resDecode)
+
+
+(close-input-port in)

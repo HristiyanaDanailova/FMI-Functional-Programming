@@ -1,0 +1,110 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+;функция, която разделя лист на подлистове според подаден delimiter
+;https://codereview.stackexchange.com/questions/87058/splitting-a-list-in-racket
+(define (split-by lst x)
+  (foldr (lambda (element next)
+           (if (eq? element x)
+               (cons '() next)
+               (cons (cons element (car next)) (cdr next))))
+         (list '()) lst))
+
+;функции за достъпване на елемент от списък за улеснение
+(define fst car)
+(define scd cadr)
+(define trd caddr)
+;ако даденият елемент е в l се връща позицията му, ако не се връща -1 
+(define (get-list-index l el)
+    (if (null? l)
+        -1
+        (if (equal? (car l) el)
+            0
+            (let ((result (get-list-index (cdr l) el)))
+                (if (= result -1)
+                    -1
+                    (+ 1 result))))))
+;вмъква елемент item na poziciq pos в list
+(define (insert-n list item n)
+  (if (= n 0)
+      (cons item list)
+      (cons (car list) (insert-n (cdr list) item (- n 1)))))
+
+;конструира списъка от двойки от вида (елемент от l . позицията му)
+(define (constr l)
+  (define (helper curr res)
+    (if (= curr (length l))
+        res
+        (helper (+ curr 1) (append res (list (cons (list-ref l curr) curr))))))
+  (helper 0 '()))
+
+;трие item от list
+(define (delete item list) (filter (lambda (x) (not (equal? x item))) list))
+
+; изчислява новата позиция на елемента от l като цикличността се симулира с модулни операции над дължината на списъка
+(define (position el l)
+  (let ((newInd (modulo (+ (-(length l)1) (modulo (+ (get-list-index l el) (fst el)) (-(length l)1))) (- (length l)1))))
+       (if (or (> newInd (- (length l) 1))
+               (< newInd 0))
+           (modulo newInd (- (length l) 1))
+            (if (= newInd 0)
+                (-(length l)1)
+                newInd))))
+
+;мести елемент от oldInd на нова позиция в l, като изчислява новата позиция, трие я от старата и я вмъква на новото място
+(define (move el oldIn l)
+  (let ((newl (delete el l))
+       (newp (position el l)))
+    (insert-n  newl el newp)
+  
+  ))
+
+; миксира l като намира позицията за всеки елемент с move
+(define (mix l constructed)
+  (define (helper res ls curr)
+    (if (= curr (length l))
+        res     
+        (helper (move (cons (car ls) curr) (get-list-index res (cons (car ls) curr)) res) (cdr ls) (+ curr 1))))
+  (helper constructed l 0))
+
+; намира позицията на 0 , намира 1000, 2000 и 3000 елемент след 0 и ги сумира
+(define (sumIt r l)
+  (let ((zero (get-list-index r (car (filter (lambda(x) (= (car x) 0)) r))
+              )))
+    (+ (fst (list-ref r (modulo (+ 1000 zero) (length r))))
+       (fst(list-ref r (modulo (+ 2000 zero) (length r))))
+       (fst(list-ref r (modulo (+ 3000 zero) (length r))))
+     )
+      ))
+; миксира списъка от елементи 10 пъти
+(define (10-times l)
+  (define (helper res cnt)
+    (if (= cnt 10)
+        res
+        (helper (mix l res) (+ cnt 1))))
+  (helper (constr l) 0))
+
+(define inp (port->string in))
+;-> "1\r\n2\r\n-3\r\n3\r\n-2\r\n0\r\n4"
+(define input (string->list inp))
+;-> (#\1 #\return #\newline #\2 #\return #\newline #\- #\3 #\return #\newline #\3 #\return #\newline #\- #\2 #\return #\newline #\0 #\return #\newline #\4)
+(define nums (map string->number (map (lambda(z) (list->string z))(map (lambda(x) (filter (lambda(y) (not (char=? y #\return))) x))(split-by input #\newline)))))
+;-> (1 2 -3 3 -2 0 4)
+(define con (constr nums))
+;-> ((1 . 0) (2 . 1) (-3 . 2) (3 . 3) (-2 . 4) (0 . 5) (4 . 6))
+(define vals (map (lambda(x) (* x 811589153) ) nums))
+;-> (811589153 1623178306 -2434767459 2434767459 -1623178306 0 3246356612)
+(sumIt (10-times vals) vals)
+;решенито работи бавно, но вярно
+
+(close-input-port in)

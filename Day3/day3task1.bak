@@ -1,0 +1,82 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+; функция, която разделя стринг на лист от стрингове според подаден delimiter
+;https://cookbook.scheme.org/split-string/
+(define (string-split char-delimiter? string)
+  (define (maybe-add a b parts)
+    (if (= a b) parts (cons (substring string a b) parts)))
+  (let ((n (string-length string)))
+    (let loop ((a 0) (b 0) (parts '()))
+      (if (< b n)
+          (if (not (char-delimiter? (string-ref string b)))
+              (loop a (+ b 1) parts)
+              (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+          (reverse (maybe-add a b parts))))))
+
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+(define (filter p l)
+  (cond ((null? l) l)
+        ((p (car l)) (cons (car l) (filter p (cdr l))))
+        (else (filter p (cdr l)))))
+
+;функция, която разделя лист на подлистове според подаден delimiter
+;https://codereview.stackexchange.com/questions/87058/splitting-a-list-in-racket
+(define (split-by lst x)
+  (foldr (lambda (element next)
+           (if (string=? element x)
+               (cons '() next)
+               (cons (cons element (car next)) (cdr next))))
+         (list '()) lst))
+;проверява дали ch е елемент от str
+(define (charInStr? ch str)
+  (if (null? str)
+       #f
+       (if (char=? ch (car str))
+            #t
+            (charInStr? ch (cdr str)))))
+
+;връща подсписък от индекс s до индекс e включително
+(define (sublist l s e)
+  (define (helper ls curr res)
+    (if (null? ls)
+        res
+        (helper (cdr ls) (+ curr 1) (if (and (>= curr s) (<= curr e))
+                                        (append res (list (car ls)))
+                                        res
+                ))))
+  (if (or ( < s 0) (< e s) (> s (length l)))
+      '()
+  (helper l 0 '())))
+
+;асоциира char със съответната му стойност според ascii стойността му
+(define (decode ch)
+  (if (char-lower-case? ch)
+      (- (char->integer ch) 96)
+      (- (char->integer ch) 38)))
+
+;филтрира всички елементи от подсписък1, които се срещат и в подсписък2 за списък l -> (подсписък1 подсписък2)
+(define (match l)
+  (filter (lambda(x) (charInStr? x (sublist l (/ (length l) 2) (length l)))) (sublist l 0 (- (/ (length l) 2) 1))))
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define input (port->string in))
+;-> "WVHGHwddqSsNjsjwqVvdwZRCbcJcZTCcsZbLcJJsCZ\r\nhngprFFhFDFhrDpzzQDhtnBJJRJZbZvTcvbfRCJfBRcBJl\r\nDmptngtFwvvMmwmm\r\nHFddrJnLdqtHBMQBmmVm"
+(define inputToStrs (string-split char-whitespace? input))
+;-> ("WVHGHwddqSsNjsjwqVvdwZRCbcJcZTCcsZbLcJJsCZ" "hngprFFhFDFhrDpzzQDhtnBJJRJZbZvTcvbfRCJfBRcBJl" "DmptngtFwvvMmwmm" "HFddrJnLdqtHBMQBmmVm")
+(define lists (map string->list inputToStrs))
+;-> ((#\W #\V #\H #\G #\H #\w #\d #\d #\q #\S #\s #\N #\j #\s #\j #\w #\q #\V #\v #\d #\w #\Z #\R #\C #\b #\c #\J #\c #\Z #\T #\C #\c #\s #\Z #\b #\L #\c #\J #\J #\s #\C #\Z)
+ ; (#\h #\n #\g #\p #\r #\F #\F #\h #\F #\D #\F #\h #\r #\D #\p #\z #\z #\Q #\D #\h #\t #\n #\B #\J #\J #\R #\J #\Z #\b #\Z #\v #\T #\c #\v #\b #\f #\R #\C #\J #\f #\B #\R #\c #\B #\J #\l)
+ ;(#\D #\m #\p #\t #\n #\g #\t #\F #\w #\v #\v #\M #\m #\w #\m #\m)
+ ;(#\H #\F #\d #\d #\r #\J #\n #\L #\d #\q #\t #\H #\B #\M #\Q #\B #\m #\m #\V #\m))
+(define matches
+  (map decode (map car (map (lambda(x) (match x)) lists))))
+;-> (19 28 13 34)
+(foldr + 0 matches)
+
+(close-input-port in)

@@ -1,0 +1,63 @@
+(#%require racket/port)
+; отваря се порт , който чете от дадения файл
+(define in (open-input-file "input.txt"))
+
+; сравнява даден char с #\return
+(define (char-return? ch)
+  (char=? #\return ch))
+
+; функция, която разделя стринг на лист от стрингове според подаден delimiter
+;https://cookbook.scheme.org/split-string/
+(define (string-split char-delimiter? string)
+  (define (maybe-add a b parts)
+    (if (= a b) parts (cons (substring string a b) parts)))
+  (let ((n (string-length string)))
+    (let loop ((a 0) (b 0) (parts '()))
+      (if (< b n)
+          (if (not (char-delimiter? (string-ref string b)))
+              (loop a (+ b 1) parts)
+              (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+          (reverse (maybe-add a b parts))))))
+
+
+(define (foldr op nv l)
+  (if (null? l) nv
+      (op (car l) (foldr op nv (cdr l)))))
+
+;функция, която разделя лист на подлистове според подаден delimiter
+;https://codereview.stackexchange.com/questions/87058/splitting-a-list-in-racket
+(define (split-by lst x)
+  (foldr (lambda (element next)
+           (if (string=? element x)
+               (cons '() next)
+               (cons (cons element (car next)) (cdr next))))
+         (list '()) lst))
+
+;имплементирано на упражнения
+(define (insertion-sort l)
+  (define (insert x l)
+    (cond ((null? l) (list x))
+          ((>= x (car l))
+           (cons x l))
+          (else
+            (cons (car l) (insert x (cdr l))))))
+  (foldr insert '() l))
+
+;към всеки ред от кода е показан пример и резултат от изпълнението
+(define inToStr (port->string in))
+;-> "10130\r\n9819\r\n4257\r\n8400\r\n10994\r\n3758\r\n8326\r\n\r\n9002\r\n15602\r\n1193\r\n6805\r\n10797"
+(define inStrSplit (string-split char-return? inToStr))
+;-> ("10130" "\n9819" "\n4257" "\n8400" "\n10994" "\n3758" "\n8326" "\n" "\n9002" "\n15602" "\n1193" "\n6805" "\n10797")
+(define inToLst (cons (car inStrSplit)(map (lambda (x) (substring x 1 (string-length x))) (cdr inStrSplit))))
+;-> ("10130" "9819" "4257" "8400" "10994" "3758" "8326" "" "9002" "15602" "1193" "6805" "10797")
+(define inLstSplit (split-by inToLst ""))
+;-> (("10130" "9819" "4257" "8400" "10994" "3758" "8326") ("9002" "15602" "1193" "6805" "10797"))
+(define toNum (map (lambda(x) (map string->number x)) inLstSplit))
+;-> ((10130 9819 4257 8400 10994 3758 8326) (9002 15602 1193 6805 10797))
+
+(define elSum (map (lambda(x) (foldr + 0 x)) toNum))
+;-> (55684 43399)
+(define sorted (insertion-sort elSum))
+(+ (car sorted) (car (cdr sorted)) (car (cdr (cdr sorted))))
+
+(close-input-port in)
